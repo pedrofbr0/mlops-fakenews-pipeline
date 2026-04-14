@@ -133,7 +133,7 @@ mlops-fakenews-pipeline/
     └── deploy.sh
 ```
 
-## Key Features for Portfolio
+## Key Features
 
 - **Production ML deployment**
 - **BigQuery** for data warehouse (partitioned, clustered tables)
