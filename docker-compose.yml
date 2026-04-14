@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  # ── MLflow Tracking Server ────────────────────────────────────────────
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.9.2
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlruns
+    command: >
+      mlflow server
+        --host 0.0.0.0
+        --port 5000
+        --backend-store-uri sqlite:///mlruns/mlflow.db
+        --default-artifact-root /mlruns/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Model Serving API ─────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - MODEL_NAME=fakenews_classifier
+      - PORT=8080
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ── Training Job (run manually) ──────────────────────────────────────
+  trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - GCP_PROJECT_ID=${GCP_PROJECT_ID}
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    command: python -m src.train.trainer --experiment fakenews-v1
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    profiles:
+      - training  # Only runs with: docker compose --profile training up trainer
+
+volumes:
+  mlflow-data:
